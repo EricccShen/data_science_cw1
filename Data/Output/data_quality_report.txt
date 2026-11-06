@@ -83,34 +83,34 @@ Structural missingness (variable not asked / stored elsewhere):
   exact age DK/Refused outside Australia (only a band in d_age_*): 294
 
 === 3. GENERATIONS (band rule = max) ===
-age taken from a band: 2085 respondents (Australia 1827, refusers 258); generation missing: 38
+age taken from a band: 1827 respondents (Australia 1827, refusers 0); generation missing: 296
 generation    Gen Z  Older
 cname                     
-Argentina       216    785
+Argentina       237    764
 Australia       326   1501
-Brazil          188    865
-Canada           90    930
-France          117    888
-Germany         105    898
-Greece           86    924
-Hungary          72    948
-India          1034   2511
-Indonesia       299    723
-Israel          222    776
-Italy           128    878
-Japan           101    894
-Kenya           531    518
-Mexico          261    789
-Netherlands     103    896
-Nigeria         425    612
-Poland          118    879
-South Africa    450   1120
-South Korea      76    966
-Spain           128    870
-Sweden          116    885
-Turkey          306    738
-UK              153    850
-compare: Gen Z n in Australia = 326 (max) vs 326 (mid); respondents whose generation changes between rules = 51
+Brazil          211    842
+Canada          102    873
+France          125    871
+Germany         119    865
+Greece           98    911
+Hungary          80    934
+India          1083   2458
+Indonesia       318    704
+Israel          239    759
+Italy           145    853
+Japan           109    827
+Kenya           560    489
+Mexico          277    773
+Netherlands     107    885
+Nigeria         460    576
+Poland          130    835
+South Africa    493   1077
+South Korea      80    962
+Spain           137    850
+Sweden          126    874
+Turkey          329    715
+UK              162    786
+compare: Gen Z n in Australia = 326 (max) vs 326 (mid); respondents whose generation changes between rules = 0
 
 === 4. PIPELINE CHECK ===
 rows in = 28333, rows out = 28333: no records lost

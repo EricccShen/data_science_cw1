@@ -17,22 +17,18 @@ import pyreadstat
 # 小组尚未决定的规则：先保持 None / {}，确定后记入决策日志
 # =====================================================================================
 
-# 已决定：只分两组。Gen Z 按标准定义（Pew, Dimock 2019）为 1997 年及以后出生，
-# 按 2025 年时的年龄（2025 - 出生年）即 18-28 岁；29 岁及以上（1996 年及以前出生）为 Older
+# 已决定：只分两组，所有国家统一 18-29 岁 = Gen Z，30 岁及以上 = Older。
+# 理由：澳大利亚只有 "18-29" 年龄段，统一用 18-29 才能让 24 国定义一致。
+# 与 Pew 标准定义（1997 年后出生，2025 年为 18-28 岁；Dimock 2019）相比多含 29 岁一岁，报告中需说明。
 # 格式：(年龄下限, 年龄上限, 组名)
-AGE_GROUPS = [(18, 28, "Gen Z"), (29, 120, "Older")]
+AGE_GROUPS = [(18, 29, "Gen Z"), (30, 120, "Older")]
 
-# 已决定：拒绝提供准确年龄、但回答了年龄段的人，用年龄段推算
-USE_AGE_BANDS_FOR_REFUSERS = True
+# 已决定：拒绝提供准确年龄的人不进入代际分析（generation 为缺失）；复现 topline 时仍保留
+USE_AGE_BANDS_FOR_REFUSERS = False
 
-# 已决定：只有年龄段的人（澳大利亚 + 拒答者）取区间最大值，如 "30-49" → 49。
-# 开放区间（如 "65+"）没有最大值，取下限 65。
-# 注意：澳大利亚 "18-29" → 29 → Millennials，澳大利亚将没有 Gen Z。改成 "mid" 可做对比（决策日志）。
+# 只有年龄段的人（现在只剩澳大利亚）取区间最大值。澳大利亚的段 18-29 / 30-49 / 50-64 / 65+
+# 正好落在 29/30 分界两侧，所以取最大值还是中点，结果都一样
 BAND_RULE = "max"                   # "max"：取最大值 / "mid"：取中点
-
-# 已决定：澳大利亚 "18-29" 整段归为 Gen Z（例外于 BAND_RULE）。
-# 理由：2025 年 18-28 岁都是 Gen Z，该段 12 个年龄里只有 29 岁一个年龄属于 Millennials
-AU_18_29_AS_GENZ = True
 
 # 已决定：分析不使用性别，此项不影响结果，保留原值
 AUSTRALIA_GENDER_OTHER = "keep"
@@ -66,8 +62,9 @@ EDU_MAP = {
     "greece":      {**_r(1, 4, 1), **_r(5, 7, 2), **_r(8, 12, 3)},
     # 4 = 职业学校（ISCED 3）；5-7 = 高中会考 / 中学后职业培训；8 = 高等技术学校（ISCED 5）
     "hungary":     {**_r(1, 3, 1), **_r(4, 7, 2), **_r(8, 11, 3)},
-    # [争议] 5 "High School" = 10 年级，高中未完成 → 低；6 = 12 年级 Senior Secondary；7-8 = 技术/专业培训文凭（ISCED 4）
-    "india":       {**_r(1, 5, 1), **_r(6, 8, 2), **_r(9, 11, 3)},
+    # 5 "High School" = 10 年级：印度官方对照 InSCED 2014 归为 ISCED 3（341，不足以完成该级），
+    # Eurostat 学历统计把 ISCED 3 的部分完成仍计为 3 级 → 中；6 = 12 年级；7-8 = 技术/专业培训文凭（ISCED 3-4）
+    "india":       {**_r(1, 4, 1), **_r(5, 8, 2), **_r(9, 11, 3)},
     # 6 = 高中未完成；7 = 高中毕业；8 = DI-DIII 文凭（ISCED 5）
     "indonesia":   {**_r(1, 6, 1), 7: 2, **_r(8, 12, 3)},
     # [争议] 5-6 = 高中 / 宗教学校完成但无会考证书，仍按 ISCED 3 → 中；11 = 中学后技术员/师范文凭（ISCED 5）；12 = Kolel 宗教进修，无学位 → 中
@@ -96,8 +93,9 @@ EDU_MAP = {
     "sweden":      {**_r(1, 3, 1), **_r(4, 5, 2), **_r(6, 10, 3)},
     # 5-6 = 初中；7 = 高中；8 = 职业高中；9 = 两年制专科或四年制大学
     "turkey":      {**_r(1, 6, 1), **_r(7, 8, 2), **_r(9, 11, 3)},
-    # 3 = GCSE（ISCED 2/3 入门，未达 A-level）；4 = A-level；5 = NVQ4 / HNC（RQF 4 = ISCED 5）
-    "uk":          {**_r(1, 3, 1), 4: 2, **_r(5, 9, 3)},
+    # [争议] 3 = GCSE（"any grades"）：同级的苏格兰 National 5 官方归为 ISCED 3 → 中；但低分 GCSE 属 ISCED 2
+    # 4 = A-level；5 = NVQ4 / HNC（RQF 4 = ISCED 5）
+    "uk":          {**_r(1, 2, 1), **_r(3, 4, 2), **_r(5, 9, 3)},
 }
 
 # =====================================================================================
@@ -324,8 +322,6 @@ def assign_age(rule):
     age = out["age"].copy()                                  # 有准确年龄的人
     au_lab = df["age_australia"].map(LABELS["age_australia"])
     age[AU] = au_lab[AU].map(lambda l: band_to_age(l, rule))  # 澳大利亚：只有年龄段
-    if AU_18_29_AS_GENZ:
-        age[AU & (au_lab == "18-29")] = 28                    # 28 = Gen Z 的最大年龄，确保整段归入 Gen Z
     if USE_AGE_BANDS_FOR_REFUSERS:                           # 拒答准确年龄、但回答了年龄段的人
         for c in age_band_cols:
             lab = df[c].map(LABELS.get(c, {}))               # 98/99 的标签不是数字开头，自动为缺失
@@ -351,7 +347,8 @@ if AGE_GROUPS:
     alt = pd.cut(assign_age(other), bins, labels=names).astype(object)
     log(f"compare: Gen Z n in Australia = {int((out.loc[AU, 'generation'] == 'Gen Z').sum())} ({BAND_RULE})"
         f" vs {int((alt[AU] == 'Gen Z').sum())} ({other});"
-        f" respondents whose generation changes between rules = {int((alt != out['generation']).sum())}")
+        f" respondents whose generation changes between rules = "
+        f"{int(((alt != out['generation']) & ~(alt.isna() & out['generation'].isna())).sum())}")
 else:
     pending.append("AGE_GROUPS")
 
@@ -387,10 +384,23 @@ assert out.groupby("cname").size().to_dict() == n_by.to_dict(), "per-country row
 log(f"\n=== 4. PIPELINE CHECK ===\nrows in = {N_ROWS_IN}, rows out = {len(out)}: no records lost")
 
 out.to_pickle("clean.pkl")
+out.to_csv("clean.csv", index=False, encoding="utf-8-sig")        # 给不用 Python 的组员（Excel 可直接打开）
+
+# 教育映射对照表：国家 / 原始编码 / 原文标签 / 统一等级，供报告写映射理由
+LEVEL_NAME = {1: "Low (ISCED 0-2)", 2: "Middle (ISCED 3-4)", 3: "High (ISCED 5-8)"}
+rows = []
+for c in edu_cols:
+    key = c.replace("d_educ_", "")
+    for code, lab in LABELS.get(c, {}).items():
+        lvl = EDU_MAP.get(key, {}).get(int(code))
+        rows.append(dict(country=key, code=int(code), label=lab,
+                         level=LEVEL_NAME.get(lvl, "Missing (DK/Refused)"),
+                         n=int((df[c] == code).sum())))
+pd.DataFrame(rows).to_csv("educ_mapping.csv", index=False, encoding="utf-8-sig")
 with open("data_quality_report.txt", "w", encoding="utf-8") as f:
     f.write("\n".join(report))
 
-print("\nSaved clean.pkl, data_quality_report.txt, educ_labels.txt")
+print("\nSaved clean.pkl, clean.csv, data_quality_report.txt, educ_labels.txt, educ_mapping.csv")
 print("Decisions still open (record each in the decision log):")
 for p in pending:
     print("  -", p)
