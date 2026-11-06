@@ -17,26 +17,88 @@ import pyreadstat
 # 小组尚未决定的规则：先保持 None / {}，确定后记入决策日志
 # =====================================================================================
 
-# TODO：年龄/世代如何分组？澳大利亚只有 18-29、30-49、50-64、65+ 四档。
-# 如果要包含澳大利亚，选用的年龄组必须能从这四档推导出来。
-# 格式：(年龄下限, 年龄上限, 组名)，例：[(18, 29, "18-29"), (30, 49, "30-49"), (50, 120, "50+")]
-AGE_GROUPS = None
+# 已决定：只分两组。Gen Z 按标准定义（Pew, Dimock 2019）为 1997 年及以后出生，
+# 按 2025 年时的年龄（2025 - 出生年）即 18-28 岁；29 岁及以上（1996 年及以前出生）为 Older
+# 格式：(年龄下限, 年龄上限, 组名)
+AGE_GROUPS = [(18, 28, "Gen Z"), (29, 120, "Older")]
 
-# TODO：拒绝提供准确年龄、但回答了年龄段的人，是使用年龄段还是剔除？
-USE_AGE_BANDS_FOR_REFUSERS = None   # True：使用 / False：不使用
+# 已决定：拒绝提供准确年龄、但回答了年龄段的人，用年龄段推算
+USE_AGE_BANDS_FOR_REFUSERS = True
 
-# TODO：澳大利亚回答性别为 Other 的 21 人，保留该类别还是设为缺失？
-AUSTRALIA_GENDER_OTHER = None       # "keep"：保留 / "missing"：设为缺失
+# 已决定：只有年龄段的人（澳大利亚 + 拒答者）取区间最大值，如 "30-49" → 49。
+# 开放区间（如 "65+"）没有最大值，取下限 65。
+# 注意：澳大利亚 "18-29" → 29 → Millennials，澳大利亚将没有 Gen Z。改成 "mid" 可做对比（决策日志）。
+BAND_RULE = "max"                   # "max"：取最大值 / "mid"：取中点
 
-# TODO：日本、韩国使用“进步—保守”政治量表，其他国家可能使用“左—右”量表。
-# 两种量表是否合并？True：合并到 ideology / False：分别保留。
-MERGE_IDEOLOGY_SCALES = None
+# 已决定：澳大利亚 "18-29" 整段归为 Gen Z（例外于 BAND_RULE）。
+# 理由：2025 年 18-28 岁都是 Gen Z，该段 12 个年龄里只有 29 岁一个年龄属于 Millennials
+AU_18_29_AS_GENZ = True
 
-# TODO：填写各国教育水平的统一映射，格式为 {国家后缀: {原始编码: 统一等级}}。
-# 国家后缀来自 d_educ_<国家>；原始编码及含义参见 educ_labels.txt。
-# 统一标准（如 ISCED 2011）及每项映射理由要写入报告；未映射的编码视为缺失。
-# 示例（仅说明格式）："uk": {1: 1, 2: 1, 3: 1, 4: 2, 5: 3, ...}
-EDU_MAP = {}
+# 已决定：分析不使用性别，此项不影响结果，保留原值
+AUSTRALIA_GENDER_OTHER = "keep"
+
+# 已决定：合并两种量表。两者方向一致：0 = 极左 / 极进步，6 = 极右 / 极保守。
+# 合并后 ideology 视为"进步—保守"维度；"左—右"与"进步—保守"并非完全相同的概念，报告中需说明
+MERGE_IDEOLOGY_SCALES = True
+
+# 已决定：按 ISCED 2011 统一为三级（UNESCO-UIS 2012）：
+#   1 = 低：ISCED 0-2（未完成高中）
+#   2 = 中：ISCED 3-4（高中、中学后非高等教育）
+#   3 = 高：ISCED 5-8（短期高等教育、本科、硕士、博士）
+# 98/99（不知道/拒答）不在映射里，自动为缺失。标 [争议] 的需要在报告中写理由。
+def _r(a, b, lvl):
+    return {k: lvl for k in range(a, b + 1)}
+
+EDU_MAP = {
+    # 4 = 中学未完成；5-7 = 中学毕业及未完成的高等教育（最高完成的仍是 ISCED 3）；8 = 非大学高等教育毕业
+    "argentina":   {**_r(1, 4, 1), **_r(5, 7, 2), **_r(8, 11, 3)},
+    # [争议] 1 "Secondary school or less" 包含 ISCED 0-3，无法拆分 → 归为中；2 Trade/certificate/diploma 跨 ISCED 4-5 → 归为中
+    "australia":   {1: 2, 2: 2, 3: 3},
+    # 6 = 高中未完成；7 = 高中毕业；8 = 本科未完成（最高完成 ISCED 3）
+    "brazil":      {**_r(1, 6, 1), **_r(7, 8, 2), **_r(9, 12, 3)},
+    # 6 = 高中毕业；7 = 技工证书；8 = CEGEP 大学预科（ISCED 4）；9 = 社区学院文凭（ISCED 5）
+    "canada":      {**_r(1, 5, 1), **_r(6, 8, 2), **_r(9, 11, 3)},
+    # 4 = CAP/BEP（职业高中）；5 = Baccalauréat；6-8 = 中学后非高等；9 = BTS/DUT（ISCED 5）
+    "france":      {**_r(1, 3, 1), **_r(4, 8, 2), **_r(9, 13, 3)},
+    # 2 = 小学或初中；3 = 短轨中学 + 学徒（双元制，ISCED 3）；4 = 长轨中学 / 大学入学资格
+    "germany":     {**_r(1, 2, 1), **_r(3, 4, 2), **_r(5, 7, 3)},
+    # 4 = 初中证书；5 = 职业高中 EPAL；6 = 普通高中；7 = IEK 职业培训学院（ISCED 4）
+    "greece":      {**_r(1, 4, 1), **_r(5, 7, 2), **_r(8, 12, 3)},
+    # 4 = 职业学校（ISCED 3）；5-7 = 高中会考 / 中学后职业培训；8 = 高等技术学校（ISCED 5）
+    "hungary":     {**_r(1, 3, 1), **_r(4, 7, 2), **_r(8, 11, 3)},
+    # [争议] 5 "High School" = 10 年级，高中未完成 → 低；6 = 12 年级 Senior Secondary；7-8 = 技术/专业培训文凭（ISCED 4）
+    "india":       {**_r(1, 5, 1), **_r(6, 8, 2), **_r(9, 11, 3)},
+    # 6 = 高中未完成；7 = 高中毕业；8 = DI-DIII 文凭（ISCED 5）
+    "indonesia":   {**_r(1, 6, 1), 7: 2, **_r(8, 12, 3)},
+    # [争议] 5-6 = 高中 / 宗教学校完成但无会考证书，仍按 ISCED 3 → 中；11 = 中学后技术员/师范文凭（ISCED 5）；12 = Kolel 宗教进修，无学位 → 中
+    "israel":      {**_r(1, 4, 1), **_r(5, 10, 2), 11: 3, 12: 2, **_r(13, 15, 3)},
+    # 4 = 高中文凭；5 = 高中后职业专业化（ISCED 4）；6 = 三年制学位
+    "italy":       {**_r(1, 3, 1), **_r(4, 5, 2), **_r(6, 8, 3)},
+    # 4 = 高中；5 = 高等专门学校；6 = 短期大学 / 专门学校（ISCED 5）
+    "japan":       {**_r(1, 3, 1), 4: 2, **_r(5, 9, 3)},
+    # [争议] 6 = 青年技工学校（小学后，ISCED 3 职业）；9 TIVET、10 师范/理工学院 跨 ISCED 4-5 → 归为中
+    "kenya":       {**_r(1, 5, 1), **_r(6, 10, 2), **_r(11, 13, 3)},
+    # 5 = 初中 secundaria 毕业（ISCED 2）；6-9 = 高中 bachillerato / 职业高中；10 = 大学
+    "mexico":      {**_r(1, 5, 1), **_r(6, 9, 2), **_r(10, 12, 3)},
+    # 3 = MBO 1 入门级（ISCED 2）；5 = HAVO/VWO；6-7 = MBO 2-4；8 = HBO/WO 本科
+    "netherlands": {**_r(1, 4, 1), **_r(5, 7, 2), **_r(8, 10, 3)},
+    # 5 = 高中；6 = 中等技术学校；7 = 国家文凭 / NCE（ISCED 5）
+    "nigeria":     {**_r(1, 4, 1), **_r(5, 6, 2), **_r(7, 11, 3)},
+    # 3 = 初中；4 = 职业学校；5-6 = 普通 / 技术高中；7 = 中学后学校（ISCED 4）
+    "poland":      {**_r(1, 3, 1), **_r(4, 7, 2), **_r(8, 10, 3)},
+    # [争议] 7 = NSC 高中毕业；8 = NC(V)；9-11 NATED N4-N6 是高中后职业证书，跨 ISCED 4-5 → 归为中；12 起为高等教育
+    "safrica":     {**_r(1, 6, 1), **_r(7, 11, 2), **_r(12, 20, 3)},
+    # 5 = 职业高中；6 = 普通高中；7 = 专科 / 理工学院（ISCED 5）
+    "skorea":      {**_r(1, 4, 1), **_r(5, 6, 2), **_r(7, 10, 3)},
+    # 5 = 初中阶段；6 = 中级职业教育（ISCED 3）；7 = 高中 Bachillerato；8 = 高级职业培训（ISCED 5）
+    "spain":       {**_r(1, 5, 1), **_r(6, 7, 2), **_r(8, 12, 3)},
+    # 4 = 高中；5 = 成人国立学校；6 = 高级职业培训 2-3 年（Yrkeshögskola，ISCED 5）
+    "sweden":      {**_r(1, 3, 1), **_r(4, 5, 2), **_r(6, 10, 3)},
+    # 5-6 = 初中；7 = 高中；8 = 职业高中；9 = 两年制专科或四年制大学
+    "turkey":      {**_r(1, 6, 1), **_r(7, 8, 2), **_r(9, 11, 3)},
+    # 3 = GCSE（ISCED 2/3 入门，未达 A-level）；4 = A-level；5 = NVQ4 / HNC（RQF 4 = ISCED 5）
+    "uk":          {**_r(1, 3, 1), 4: 2, **_r(5, 9, 3)},
+}
 
 # =====================================================================================
 # 官方参考信息：用于核对国家覆盖范围与调查时间，不来自 data.sav
@@ -92,7 +154,7 @@ def log(*a):
 # =====================================================================================
 CORE = ["ai_heard", "ai_cncexc", "aireg_us", "aireg_china", "aireg_eu", "aireg_country"]
 edu_all = sorted(c for c in df.columns if c.startswith("d_educ_"))
-SUPPLEMENTARY = ("_vocational", "_years")      # 德国和以色列的补充教育信息，不属于主要教育问题
+SUPPLEMENTARY = ("_vocational", "_years")      
 edu_cols = [c for c in edu_all if not c.endswith(SUPPLEMENTARY)]
 
 # 1.1 数据结构：有多少行和列，各国变量是否分散存放
@@ -248,14 +310,48 @@ out["educ_key"] = out["cname"].map(key_of)
 # =====================================================================================
 pending = []
 
+def band_to_age(label, rule):
+    """把年龄段标签换成一个年龄：'30-49' → 49（max）或 39.5（mid）；开放区间 '65+' → 65（下限）。"""
+    if not isinstance(label, str) or not label[:1].isdigit():
+        return np.nan
+    if label.endswith("+"):
+        return float(label[:-1])
+    lo, hi = (float(x) for x in label.split("-"))
+    return hi if rule == "max" else (lo + hi) / 2
+
+
+def assign_age(rule):
+    age = out["age"].copy()                                  # 有准确年龄的人
+    au_lab = df["age_australia"].map(LABELS["age_australia"])
+    age[AU] = au_lab[AU].map(lambda l: band_to_age(l, rule))  # 澳大利亚：只有年龄段
+    if AU_18_29_AS_GENZ:
+        age[AU & (au_lab == "18-29")] = 28                    # 28 = Gen Z 的最大年龄，确保整段归入 Gen Z
+    if USE_AGE_BANDS_FOR_REFUSERS:                           # 拒答准确年龄、但回答了年龄段的人
+        for c in age_band_cols:
+            lab = df[c].map(LABELS.get(c, {}))               # 98/99 的标签不是数字开头，自动为缺失
+            m = age.isna() & lab.notna()
+            age[m] = lab[m].map(lambda l: band_to_age(l, rule))
+    return age
+
+
 if AGE_GROUPS:
-    age = out["age"].copy()
-    if USE_AGE_BANDS_FOR_REFUSERS is None:
-        pending.append("USE_AGE_BANDS_FOR_REFUSERS")
     bins = [AGE_GROUPS[0][0] - 1] + [hi for _, hi, _ in AGE_GROUPS]
-    out["age_grp"] = pd.cut(age, bins, labels=[l for *_, l in AGE_GROUPS]).astype(object)
-    # TODO：澳大利亚与拒答者的年龄段，怎样对应到 AGE_GROUPS？
-    pending.append("map age_band_australia / age_band_refusers onto AGE_GROUPS")
+    names = [l for *_, l in AGE_GROUPS]
+    out["age_assigned"] = assign_age(BAND_RULE)              # 准确年龄，或由年龄段推算的年龄
+    out["age_from_band"] = out["age"].isna() & out["age_assigned"].notna()
+    out["generation"] = pd.cut(out["age_assigned"], bins, labels=names).astype(object)
+
+    log(f"\n=== 3. GENERATIONS (band rule = {BAND_RULE}) ===")
+    log(f"age taken from a band: {int(out['age_from_band'].sum())} respondents"
+        f" (Australia {int(out.loc[AU, 'age_from_band'].sum())}, refusers {int(out.loc[~AU, 'age_from_band'].sum())});"
+        f" generation missing: {int(out['generation'].isna().sum())}")
+    tab = pd.crosstab(out["cname"], out["generation"])[names]
+    log(tab.to_string())
+    other = "mid" if BAND_RULE == "max" else "max"
+    alt = pd.cut(assign_age(other), bins, labels=names).astype(object)
+    log(f"compare: Gen Z n in Australia = {int((out.loc[AU, 'generation'] == 'Gen Z').sum())} ({BAND_RULE})"
+        f" vs {int((alt[AU] == 'Gen Z').sum())} ({other});"
+        f" respondents whose generation changes between rules = {int((alt != out['generation']).sum())}")
 else:
     pending.append("AGE_GROUPS")
 
