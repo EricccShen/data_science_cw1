@@ -1,5 +1,7 @@
 # Shen decision log and AI use evidence
 
+Follow-up disclosure: the user later completed GitHub CLI device authorisation as EricccShen and authorised fork/PR collaboration because that account lacks upstream Write permission. The first local-delivery record below predates this follow-up; publication status is available in GitHub and the root Q30_Q31_README.md.
+
 This is a factual working record for the group's one-page decision log and AI use statement. Condense it after group review; do not imply that one member's record covers everyone.
 
 ## Decisions and alternatives actually executed

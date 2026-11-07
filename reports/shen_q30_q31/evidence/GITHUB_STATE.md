@@ -1,5 +1,7 @@
 # GitHub state verified 7 November 2026
 
+Historical snapshot: this inspection predates the user-authorised EricccShen fork/PR follow-up. It is evidence of the original run, not the current publication state.
+
 Remote branches: main at 4dc8ce983027cf1efa58c5c107752b4d8c4fa1f6; dataprocess at de0fff48ba7e1b769826bcbd7cf3af294076fd4c. The latter descends from main and contains the newest cleaner and source layout.
 
 All upstream commits (newest first; UTC timestamps):
